@@ -1,0 +1,144 @@
+/* style.css — only for Chat Page */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: linear-gradient(135deg, #74ebd5, #9face6);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 800px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+header h1 {
+  font-size: 2em;
+  color: #333;
+}
+
+.chat-box {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 10px;
+  height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+textarea {
+  width: 90%; /* ✅ Keeps it neat inside center */
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  margin: 10px auto; /* ✅ Center textarea */
+  display: block;
+}
+
+.message {
+  margin: 10px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 70%;
+}
+
+.user {
+  background: #007bff;
+  color: white;
+  margin-left: auto;
+  text-align: right;
+}
+
+.bot {
+  background: #f1f1f1;
+  color: #333;
+  text-align: left;
+}
+
+.input-area {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+input[type="text"] {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #007BFF, #00c6ff);
+  color: white;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+.breath-circle {
+  width: 120px;
+  height: 120px;
+  margin: 40px auto 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #00c6ff, #007BFF);
+  transition: transform 4s ease; /* <— fixed duration */
+}
+.breath-circle.inhale {
+  transform: scale(1.2);
+}
+.breath-circle.exhale {
+  transform: scale(1);
+}
+
+#stopBreathing {
+  background: #28a745;  /* green color */
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  margin-top: 10px;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+#stopBreathing:hover {
+  background: #218838;
+}
+#breathText {
+  font-size: 1.2rem;
+  color: #333;
+  text-align: center;
+  margin-top: 10px;
+}
+.breath-circle {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}

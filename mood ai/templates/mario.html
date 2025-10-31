@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mario 2D — A/D move, W jump, R restart</title>
+  <style>
+    :root{
+      --ui:#111; --ui-bg:rgba(255,255,255,.9);
+      --sky1:#7ec8ff; --sky2:#cfe9ff; --ground:#6b4d2e;
+      --platform:#79c97f; --spike:#c0392b; --enemy:#d35400; --player:#2e86de;
+      --grid: 16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:linear-gradient(var(--sky1),var(--sky2));
+      display:flex; align-items:center; justify-content:center; font-family:system-ui,Segoe UI,Arial,sans-serif;
+      overflow:hidden;
+    }
+    #gameWrap{ position:relative; }
+    canvas{
+      display:block; border:4px solid #333; border-radius:14px;
+      background:
+        linear-gradient(var(--sky1),var(--sky2)) no-repeat,
+        radial-gradient( at 20% 15%, rgba(255,255,255,.35), transparent 50% ),
+        radial-gradient( at 70% 10%, rgba(255,255,255,.25), transparent 55% );
+    }
+    #hud{
+      position:absolute; top:10px; left:10px; color:var(--ui); font-weight:700;
+      text-shadow:0 2px 0 rgba(255,255,255,.65);
+      display:flex; gap:16px; font-size:18px; align-items:center;
+      user-select:none;
+    }
+    #controls{
+      position:absolute; top:10px; right:10px; color:#222; font-size:14px; opacity:.8; user-select:none;
+      background:var(--ui-bg); padding:6px 10px; border-radius:10px;
+    }
+    #gameOver{
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.3); visibility:hidden; opacity:0; transition:.25s ease;
+    }
+    #gameOver.visible{ visibility:visible; opacity:1; }
+    .panel{
+      background:var(--ui-bg); padding:22px 28px; border-radius:16px; text-align:center; min-width:280px;
+      box-shadow:0 10px 30px rgba(0,0,0,.15);
+    }
+    .panel h1{ margin:0 0 6px; font-size:28px; }
+    .panel p{ margin:4px 0; }
+    .btn{
+      margin-top:12px; padding:10px 18px; border:none; border-radius:10px; cursor:pointer;
+      background:linear-gradient(90deg,#2f7bf3,#5ec6ff); color:#fff; font-weight:700;
+      box-shadow:0 8px 20px rgba(47,123,243,.25);
+    }
+    .pill{
+      background:var(--ui-bg); padding:6px 10px; border-radius:999px; box-shadow:0 1px 0 rgba(0,0,0,.1);
+    }
+  </style>
+</head>
+<body>
+  <div id="gameWrap">
+    <canvas id="cv" width="960" height="540"></canvas>
+
+    <div id="hud">
+      <span id="score" class="pill">Score: 0</span>
+      <span id="best" class="pill">High Score: 0</span>
+    </div>
+    <div id="controls">Controls: <b>A</b> left, <b>D</b> right, <b>W</b> jump, <b>R</b> restart</div>
+
+    <!-- overlay (will show either game over or congrats panel) -->
+    <div id="gameOver">
+      <!-- Game Over panel -->
+      <div id="gameOverPanel" class="panel" style="display:none">
+        <h1>Game Over</h1>
+        <p id="finalScoreOver">Your Score: 0</p>
+        <p id="bestScoreOver">Best: 0</p>
+        <button id="restartBtnOver" class="btn">Restart (R)</button>
+      </div>
+
+      <!-- Congratulations panel -->
+      <div id="congratsPanel" class="panel" style="display:none">
+        <h1>Congratulations!</h1>
+        <p id="finalScoreCongrats">Your Score: 0</p>
+        <p id="bestScoreCongrats">Best: 0</p>
+        <button id="restartBtnCongrats" class="btn">Restart (R)</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ===== Canvas & UI
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const bestEl  = document.getElementById('best');
+
+  const overUi  = document.getElementById('gameOver');
+  const gameOverPanel = document.getElementById('gameOverPanel');
+  const congratsPanel = document.getElementById('congratsPanel');
+
+  const finalScoreOver = document.getElementById('finalScoreOver');
+  const bestScoreOver  = document.getElementById('bestScoreOver');
+  const restartBtnOver = document.getElementById('restartBtnOver');
+
+  const finalScoreCongrats = document.getElementById('finalScoreCongrats');
+  const bestScoreCongrats  = document.getElementById('bestScoreCongrats');
+  const restartBtnCongrats = document.getElementById('restartBtnCongrats');
+
+  // ===== World & camera
+  const WORLD = { w: 6000, h: cv.height, gravity: 1.5, floorH: 60 };
+  let cameraX = 0;
+
+  // ===== Input
+  const keys = Object.create(null);
+  window.addEventListener('keydown', e=>{
+    const k = e.key.toLowerCase();
+    if (['a','d','w','r'].includes(k)) e.preventDefault();
+    keys[k]=true;
+
+    if (k==='w' && player.grounded && !player.dead) jump();
+    if (k==='r') restart();
+  }, {passive:false});
+  window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
+
+  // ===== Player
+  const player = {
+    x: 120, y: WORLD.h - WORLD.floorH - 64,
+    w: 40, h: 60,
+    vx: 0, vy: 0,
+    accel: 0.7, speed: 5.2, friction: 0.85,
+    grounded: false, canDouble: true,
+    jumpPower: 22,
+    dead: false,
+    score: 0, maxDistance: 0,
+  };
+
+  // ===== Platforms, spikes, enemies
+  const platforms = [
+    {x:0, y:WORLD.h - WORLD.floorH, w:WORLD.w, h:WORLD.floorH, ground:true},
+    {x:300, y:420, w:220, h:20},
+    {x:620, y:360, w:160, h:20},
+    {x:900, y:300, w:200, h:20},
+    {x:1200, y:420, w:260, h:20},
+    {x:1600, y:360, w:200, h:20},
+    {x:1950, y:300, w:180, h:20},
+    {x:2300, y:360, w:200, h:20},
+    {x:2600, y:420, w:220, h:20},
+    {x:2900, y:360, w:170, h:20},
+    {x:3250, y:300, w:200, h:20},
+    {x:3600, y:360, w:200, h:20},
+    {x:3950, y:420, w:200, h:20},
+    {x:4300, y:360, w:240, h:20},
+    {x:4700, y:300, w:200, h:20},
+    {x:5100, y:360, w:260, h:20},
+    {x:5450, y:420, w:220, h:20},
+  ];
+
+  const spikes = [
+    {x: 520, y: WORLD.h - WORLD.floorH - 24, w: 40, h: 24},
+    {x: 1500, y: WORLD.h - WORLD.floorH - 24, w: 50, h: 24},
+    {x: 2500, y: WORLD.h - WORLD.floorH - 24, w: 60, h: 24},
+    {x: 4100, y: WORLD.h - WORLD.floorH - 24, w: 50, h: 24},
+    {x: 5700, y: WORLD.h - WORLD.floorH - 24, w: 60, h: 24},
+  ];
+
+  const enemies = [
+    makeEnemy(1750, WORLD.h - WORLD.floorH - 50, 40, 50, 1.4, 1700, 1900),
+    makeEnemy(3400, WORLD.h - WORLD.floorH - 50, 40, 50, 1.6, 3350, 3550),
+    makeEnemy(4850, WORLD.h - WORLD.floorH - 50, 40, 50, 1.5, 4800, 5000),
+  ];
+
+  function makeEnemy(x,y,w,h,speed,minX,maxX){
+    return {x,y,w,h, vx:speed, minX, maxX, alive:true, stomped:false};
+  }
+
+  // ===== Flag (placed near end of world) - must be top level so update() can see it
+  const flag = {
+    x: WORLD.w - 120, // position near the end of the world
+    y: WORLD.h - WORLD.floorH - 150, // pole top y (pole extends downwards)
+    w: 8,   // pole width
+    h: 150,  // pole height
+    flagW: 60,
+    flagH: 40
+  };
+
+  // ===== High score
+  let best = Number(localStorage.getItem('mario_best')||0);
+  bestEl.textContent = `High Score: ${best}`;
+  congratsPanel.style.display = 'none';
+
+  // ===== Game loop
+  let rafId = null;
+  function loop(){
+    update();
+    draw();
+    if (!player.dead) rafId = requestAnimationFrame(loop);
+  } // <-- fixed: closed loop function
+
+  function update(){
+    // Horizontal movement (A/D)
+    if (keys['a']) player.vx = Math.max(player.vx - player.accel, -player.speed);
+    if (keys['d']) player.vx = Math.min(player.vx + player.accel,  player.speed);
+    if (!keys['a'] && !keys['d']) player.vx *= player.friction;
+
+    // Gravity
+    player.vy += WORLD.gravity;
+    player.grounded = false;
+
+    // Integrate
+    player.x += player.vx;
+    player.y += player.vy;
+
+    // Keep inside world horizontally
+    if (player.x < 0) { player.x = 0; player.vx = 0; }
+    if (player.x + player.w > WORLD.w) { player.x = WORLD.w - player.w; player.vx = 0; }
+
+    // Collide with platforms
+    for (const p of platforms){
+      resolveSolid(player, p);
+    }
+
+    // Check if player reaches flag (use flag's world coords)
+    // We'll consider flag area to include pole + flag cloth
+    const flagArea = { x: flag.x, y: flag.y, w: flag.w + flag.flagW, h: flag.h };
+    if (aabb(player, flagArea)){
+      // player reached goal
+      player.dead = true;
+      cancelAnimationFrame(rafId);
+      showCongratulations(); // shows congrats panel and overlay
+      return;
+    }
+
+    // Kill zones: spikes
+    for (const s of spikes){
+      if (aabb(player, s)) return endGame();
+    }
+
+    // Enemies: patrol + collision
+    for (const e of enemies){
+      if (!e.alive) continue;
+      e.x += e.vx;
+      if (e.x < e.minX || e.x + e.w > e.maxX) e.vx *= -1;
+
+      if (aabb(player, e)){
+        const isStomp = (player.vy > 0) && ((player.y + player.h) - e.y) < 16;
+        if (isStomp){
+          e.alive = false; e.stomped = true;
+          player.vy = -16; // bounce
+          player.score += 100;
+        }else{
+          return endGame();
+        }
+      }
+    }
+
+    // Scoring by distance
+    player.maxDistance = Math.max(player.maxDistance, Math.floor(player.x));
+    player.score = Math.max(player.score, Math.floor(player.maxDistance / 10));
+    scoreEl.textContent = `Score: ${player.score}`;
+
+    // Camera follows player
+    cameraX = player.x + player.w/2 - cv.width/2;
+    cameraX = Math.max(0, Math.min(cameraX, WORLD.w - cv.width));
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+
+    // Parallax hills
+    const parY = WORLD.h - WORLD.floorH;
+    drawHill('#b3e5ff', 0.2, 120);
+    drawHill('#a0dcff', 0.35, 80);
+    function drawHill(color, scale, height){
+      ctx.fillStyle = color;
+      const off = cameraX * scale;
+      ctx.beginPath();
+      ctx.moveTo(-off, parY);
+      for(let x=-off; x< cv.width - off + 200; x+=200){
+        ctx.quadraticCurveTo(x+100, parY - height, x+200, parY);
+      }
+      ctx.lineTo(cv.width, cv.height); ctx.lineTo(0, cv.height); ctx.closePath(); ctx.fill();
+    }
+
+    // Ground
+    ctx.fillStyle = '#5b3f25';
+    ctx.fillRect(-cameraX, WORLD.h - WORLD.floorH, WORLD.w, WORLD.floorH);
+    ctx.fillStyle = '#8dd17a';
+    ctx.fillRect(-cameraX, WORLD.h - WORLD.floorH, WORLD.w, 10);
+
+    // Platforms
+    ctx.fillStyle = getCss('--platform');
+    for (const p of platforms){
+      if (p.ground) continue;
+      ctx.fillRect(p.x - cameraX, p.y, p.w, p.h);
+    }
+
+    // Spikes
+    ctx.fillStyle = getCss('--spike');
+    spikes.forEach(s=>{
+      const n = Math.max(1, Math.floor(s.w/12));
+      const baseX = s.x - cameraX;
+      const step = s.w / n;
+      for(let i=0;i<n;i++){
+        const x = baseX + i*step;
+        ctx.beginPath();
+        ctx.moveTo(x, s.y + s.h);
+        ctx.lineTo(x + step/2, s.y);
+        ctx.lineTo(x + step, s.y + s.h);
+        ctx.closePath(); ctx.fill();
+      }
+    });
+
+    // Enemies
+    enemies.forEach(e=>{
+      if (!e.alive) return;
+      ctx.fillStyle = getCss('--enemy');
+      ctx.fillRect(e.x - cameraX, e.y, e.w, e.h);
+      // tiny eyes
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(e.x - cameraX + 8, e.y + 10, 6, 6);
+      ctx.fillRect(e.x - cameraX + e.w - 14, e.y + 10, 6, 6);
+    });
+
+    // Draw flag pole (world coords -> camera)
+    ctx.fillStyle = "#555";
+    ctx.fillRect(flag.x - cameraX, flag.y, flag.w, flag.h);
+
+    // Draw red flag cloth
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.moveTo(flag.x + flag.w - cameraX, flag.y + 12);
+    ctx.lineTo(flag.x + flag.w + flag.flagW - cameraX, flag.y + 12 + flag.flagH/2);
+    ctx.lineTo(flag.x + flag.w - cameraX, flag.y + 12 + flag.flagH);
+    ctx.closePath();
+    ctx.fill();
+
+    // Player (draw after flag so player overlaps when close)
+    ctx.fillStyle = getCss('--player');
+    ctx.fillRect(player.x - cameraX, player.y, player.w, player.h);
+    // face
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(player.x - cameraX + 10, player.y + 16, 6, 6);
+    ctx.fillRect(player.x - cameraX + 24, player.y + 16, 6, 6);
+  }
+
+  // ===== Helpers
+  function jump(){
+    player.vy = -player.jumpPower;
+    player.grounded = false;
+  }
+
+  function aabb(a,b){
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function resolveSolid(a, s){
+    if (!aabb(a,s)) return;
+    const prevX = a.x - a.vx;
+    const prevY = a.y - a.vy;
+
+    const overlapX1 = (a.x + a.w) - s.x;
+    const overlapX2 = (s.x + s.w) - a.x;
+    const overlapY1 = (a.y + a.h) - s.y;
+    const overlapY2 = (s.y + s.h) - a.y;
+
+    const fromLeft   = prevX + a.w <= s.x;
+    const fromRight  = prevX >= s.x + s.w;
+    const fromTop    = prevY + a.h <= s.y;
+    const fromBottom = prevY >= s.y + s.h;
+
+    if (fromTop){
+      a.y = s.y - a.h; a.vy = 0; a.grounded = true; return;
+    }
+    if (fromBottom){
+      a.y = s.y + s.h; a.vy = 0; return;
+    }
+    if (fromLeft){
+      a.x = s.x - a.w; a.vx = 0; return;
+    }
+    if (fromRight){
+      a.x = s.x + s.w; a.vx = 0; return;
+    }
+
+    const minX = Math.min(overlapX1, overlapX2);
+    const minY = Math.min(overlapY1, overlapY2);
+    if (minX < minY){
+      if (overlapX1 < overlapX2){ a.x -= overlapX1; } else { a.x += overlapX2; }
+      a.vx = 0;
+    } else {
+      if (overlapY1 < overlapY2){ a.y -= overlapY1; a.grounded = true; } else { a.y += overlapY2; }
+      a.vy = 0;
+    }
+  }
+
+  function endGame(){
+    player.dead = true;
+    cancelAnimationFrame(rafId);
+    player.vx = 0; player.vy = 0;
+
+    if (player.score > best){
+      best = player.score;
+      localStorage.setItem('mario_best', String(best));
+    }
+    finalScoreOver.textContent = `Your Score: ${player.score}`;
+    bestScoreOver.textContent  = `Best: ${best}`;
+    bestEl.textContent         = `High Score: ${best}`;
+
+    // show overlay + game over panel
+    congratsPanel.style.display = 'none';
+    gameOverPanel.style.display = 'block';
+    overUi.classList.add('visible');
+  }
+
+  function showCongratulations(){
+    if (player.score > best){
+      best = player.score;
+      localStorage.setItem('mario_best', String(best));
+    }
+    finalScoreCongrats.textContent = `Your Score: ${player.score}`;
+    bestScoreCongrats.textContent  = `Best: ${best}`;
+    bestEl.textContent             = `High Score: ${best}`;
+
+    // show overlay + congrats panel
+    gameOverPanel.style.display = 'none';
+    congratsPanel.style.display = 'block';
+    overUi.classList.add('visible');
+  }
+
+  function restart(){
+    // allow restart only after player.dead
+    if (!player.dead) return;
+    location.reload();
+  }
+
+  function getCss(varName){
+    return getComputedStyle(document.documentElement).getPropertyValue(varName) || '#000';
+  }
+
+  // wire up restart buttons
+  restartBtnOver.addEventListener('click', ()=>location.reload());
+  restartBtnCongrats.addEventListener('click', restart);
+
+  // Start!
+  loop();
+  </script>
+</body>
+</html>

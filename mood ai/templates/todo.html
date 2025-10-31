@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Simple To‑Do List + Pomodoro</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#7c5cff;--muted:#9aa4b2;--success:#22c55e;--danger:#ef4444}
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;background:linear-gradient(180deg,#071025 0%,#091226 60%);color:#e6eef8;min-height:100vh;display:grid;place-items:center;padding:28px}
+    .todo-wrap{width:100%;max-width:720px;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.04);padding:24px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+    h1{margin:0 0 8px;font-size:20px;display:flex;align-items:center;gap:10px}
+    h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 4px 18px rgba(124,92,255,0.25)}
+    p.lead{margin:0 0 18px;color:var(--muted);font-size:13px}
+
+    .controls{display:flex;gap:8px}
+    .controls input[type="text"]{flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;outline:none;font-size:14px}
+    .controls button{padding:10px 14px;border-radius:8px;border:0;background:var(--accent);color:white;font-weight:600;cursor:pointer;transition:transform .12s ease}
+    .controls button:active{transform:scale(.98)}
+
+    .list{margin-top:18px;display:flex;flex-direction:column;gap:8px}
+    .item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent)}
+    .item .left{display:flex;align-items:center;gap:12px;flex:1}
+    .item input[type="checkbox"]{width:18px;height:18px}
+    .item label{font-size:15px}
+    .item.completed label{text-decoration:line-through;color:var(--muted)}
+
+    .actions{display:flex;gap:8px}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);padding:6px 8px;border-radius:8px;cursor:pointer}
+    .count{margin-top:14px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;align-items:center}
+
+    /* Pomodoro timer */
+    .pomodoro{margin-top:22px;padding:18px;border:1px solid rgba(255,255,255,0.05);border-radius:12px;text-align:center;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))}
+    .pomodoro h2{margin:0 0 10px;font-size:18px}
+    .timer-display{font-size:42px;font-weight:700;margin-bottom:8px}
+    .timer-meta{color:var(--muted);font-size:13px;margin-bottom:10px}
+    .pom-controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
+    .pom-controls input[type="number"]{width:120px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .pom-controls label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+
+    .pomodoro button{margin:0 4px;padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
+    .start{background:var(--success);color:#fff}
+    .pause{background:var(--accent);color:#fff}
+    .reset{background:var(--danger);color:#fff}
+
+    @media (max-width:420px){.controls{flex-direction:column}.controls button{width:100%}}
+  </style>
+</head>
+<body>
+  <main class="todo-wrap" role="application" aria-label="Simple to-do list">
+    <h1><span class="dot" aria-hidden></span>Simple To‑Do + Pomodoro</h1>
+    <p class="lead">Add tasks, mark them done, delete. Data is saved locally in your browser.</p>
+
+    <div class="controls">
+      <input id="newTask" type="text" placeholder="Add a new task and press Enter or click Add" aria-label="New task">
+      <button id="addBtn" type="button">Add</button>
+    </div>
+
+    <div id="list" class="list" aria-live="polite"></div>
+
+    <div class="count">
+      <div id="leftCounter">0 tasks left</div>
+      <div>
+        <button id="clearDone" class="btn-ghost" type="button">Clear completed</button>
+        <button id="clearAll" class="btn-ghost" type="button">Clear all</button>
+      </div>
+    </div>
+
+    <section class="pomodoro" aria-label="Pomodoro timer">
+      <h2>Pomodoro Timer</h2>
+
+      <div class="pom-controls">
+        <input id="studyHours" type="number" step="0.25" min="0" value="1" title="Study hours (e.g. 1 or 1.5 for 90 minutes)">
+        <input id="breakMinutes" type="number" step="1" min="0" value="5" title="Break minutes (e.g. 5)">
+        <label><input id="loopToggle" type="checkbox"> Auto-loop</label>
+      </div>
+
+      <div id="timerMode" class="timer-meta">Mode: Idle</div>
+      <div id="timer" class="timer-display">60:00</div>
+      <div>
+        <button class="start" id="startBtn">Start</button>
+        <button class="pause" id="pauseBtn">Pause</button>
+        <button class="reset" id="resetBtn">Reset</button>
+      </div>
+      <div class="timer-meta" style="margin-top:8px;color:var(--muted)">Tip: to test quickly enter small values (e.g. 0.01 hours ≈ 36 seconds).</div>
+    </section>
+  </main>
+
+  <script>
+    // To-do list functionality
+    const newTask = document.getElementById('newTask');
+    const addBtn = document.getElementById('addBtn');
+    const listEl = document.getElementById('list');
+    const leftCounter = document.getElementById('leftCounter');
+    const clearDone = document.getElementById('clearDone');
+    const clearAll = document.getElementById('clearAll');
+
+    let tasks = JSON.parse(localStorage.getItem('todo.tasks') || '[]');
+
+    function save(){ localStorage.setItem('todo.tasks', JSON.stringify(tasks)); }
+
+    function render(){
+      listEl.innerHTML = '';
+      if(tasks.length === 0){ listEl.innerHTML = '<div style="color:var(--muted);padding:12px;border-radius:8px;border:1px dashed rgba(255,255,255,0.03)">No tasks yet — add something!</div>' }
+
+      tasks.forEach((t, idx) =>{
+        const item = document.createElement('div'); item.className = 'item' + (t.done ? ' completed' : '');
+        const left = document.createElement('div'); left.className = 'left';
+
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = t.done; cb.setAttribute('aria-label','Mark task done');
+        cb.addEventListener('change', ()=>{ tasks[idx].done = cb.checked; save(); render(); });
+
+        const lbl = document.createElement('label'); lbl.textContent = t.text; lbl.title = 'Double-click to edit';
+        lbl.addEventListener('dblclick', ()=>{ editTask(idx); });
+
+        left.appendChild(cb); left.appendChild(lbl);
+
+        const actions = document.createElement('div'); actions.className = 'actions';
+        const del = document.createElement('button'); del.className='btn-ghost'; del.textContent='Delete'; del.addEventListener('click', ()=>{ tasks.splice(idx,1); save(); render(); });
+        actions.appendChild(del);
+
+        item.appendChild(left); item.appendChild(actions);
+        listEl.appendChild(item);
+      });
+
+      const left = tasks.filter(t=>!t.done).length;
+      leftCounter.textContent = left + (left===1? ' task left' : ' tasks left');
+    }
+
+    function addTask(text){ text = (text||'').trim(); if(!text) return; tasks.unshift({text,done:false}); save(); render(); }
+
+    addBtn.addEventListener('click', ()=>{ addTask(newTask.value); newTask.value=''; newTask.focus(); });
+    newTask.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ addTask(newTask.value); newTask.value=''; } });
+
+    function editTask(idx){
+      const current = tasks[idx].text;
+      const input = document.createElement('input'); input.type='text'; input.value = current; input.style.width='100%';
+      const item = listEl.children[idx];
+      const label = item.querySelector('label');
+      label.replaceWith(input);
+      input.focus();
+      input.select();
+      input.addEventListener('blur', ()=>{ tasks[idx].text = input.value.trim() || current; save(); render(); });
+      input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ input.blur(); } if(e.key==='Escape'){ render(); } });
+    }
+
+    clearDone.addEventListener('click', ()=>{ tasks = tasks.filter(t=>!t.done); save(); render(); });
+    clearAll.addEventListener('click', ()=>{ if(confirm('Clear ALL tasks?')){ tasks = []; save(); render(); } });
+
+    render();
+
+    // Pomodoro timer functionality (custom study hours + custom break minutes + optional auto-loop)
+    const studyInput = document.getElementById('studyHours');
+    const breakInput = document.getElementById('breakMinutes');
+    const loopToggle = document.getElementById('loopToggle');
+    const timerEl = document.getElementById('timer');
+    const modeEl = document.getElementById('timerMode');
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    let studySeconds = Math.max(0, Math.round(Number(studyInput.value || 1) * 3600));
+    let breakSeconds = Math.max(0, Math.round(Number(breakInput.value || 5) * 60));
+    let remaining = studySeconds;
+    let intervalId = null;
+    let mode = 'idle'; // 'idle' | 'study' | 'break'
+
+    function saveSettings(){
+      studySeconds = Math.max(0, Math.round(Number(studyInput.value || 0) * 3600));
+      breakSeconds = Math.max(0, Math.round(Number(breakInput.value || 0) * 60));
+    }
+
+    function formatTime(s){
+      const m = Math.floor(s/60).toString().padStart(2,'0');
+      const sec = (s%60).toString().padStart(2,'0');
+      return `${m}:${sec}`;
+    }
+
+    function updateTimerUI(){
+      timerEl.textContent = formatTime(Math.max(0, remaining));
+      modeEl.textContent = 'Mode: ' + (mode === 'idle' ? 'Idle' : (mode === 'study' ? 'Study' : 'Break'));
+    }
+
+    function beep(){
+      try{
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = 880;
+        g.gain.value = 0.06;
+        o.connect(g); g.connect(ctx.destination);
+        o.start();
+        setTimeout(()=>{ o.stop(); ctx.close(); }, 220);
+      }catch(e){ /* ignore audio errors */ }
+    }
+
+    function startInterval(){
+      if(intervalId) return;
+      intervalId = setInterval(()=>{
+        remaining--;
+        updateTimerUI();
+        if(remaining <= 0){
+          clearInterval(intervalId); intervalId = null;
+
+          if(mode === 'study'){
+            beep();
+            alert('Study time finished. Break will start now (reminder: stay hydrated!).');
+            // start break automatically
+            mode = 'break';
+            remaining = Math.max(1, breakSeconds);
+            updateTimerUI();
+            // if break seconds is 0, immediately finish
+            if(remaining === 0){
+              // treat as completed break
+              onBreakEnd();
+            } else {
+              startInterval();
+            }
+          } else if(mode === 'break'){
+            beep();
+            alert('Break finished.');
+            onBreakEnd();
+          }
+        }
+      }, 1000);
+    }
+
+    function onBreakEnd(){
+      if(loopToggle.checked && studySeconds > 0){
+        // start a new study automatically
+        mode = 'study';
+        remaining = studySeconds;
+        updateTimerUI();
+        startInterval();
+      } else {
+        // reset to idle and set remaining back to studySeconds
+        mode = 'idle';
+        remaining = studySeconds;
+        updateTimerUI();
+      }
+    }
+
+    function startHandler(){
+      // refresh settings when starting (if idle)
+      saveSettings();
+      if(studySeconds <= 0){ alert('Please enter a study time greater than 0 hours.'); return; }
+
+      if(mode === 'idle'){
+        mode = 'study';
+        remaining = studySeconds;
+        updateTimerUI();
+        startInterval();
+      } else if(mode === 'study' || mode === 'break'){
+        // already running; clicking Start will resume if paused
+        if(!intervalId) startInterval();
+      }
+    }
+
+    function pauseHandler(){
+      if(intervalId){ clearInterval(intervalId); intervalId = null; }
+    }
+
+    function resetHandler(){
+      if(intervalId){ clearInterval(intervalId); intervalId = null; }
+      saveSettings();
+      mode = 'idle';
+      remaining = studySeconds;
+      updateTimerUI();
+    }
+
+    // update display whenever inputs change while idle
+    studyInput.addEventListener('input', ()=>{
+      if(mode === 'idle'){
+        saveSettings(); remaining = studySeconds; updateTimerUI();
+      }
+    });
+    breakInput.addEventListener('input', ()=>{ saveSettings(); });
+
+    startBtn.addEventListener('click', startHandler);
+    pauseBtn.addEventListener('click', pauseHandler);
+    resetBtn.addEventListener('click', resetHandler);
+
+    // initialize UI
+    saveSettings(); remaining = studySeconds; updateTimerUI();
+  </script>
+</body>
+</html>

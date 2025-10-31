@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ludo – Playable</title>
+  <style>
+    :root{
+      --red:#ff5252; --red-dark:#b71c1c;
+      --green:#43a047; --green-dark:#1b5e20;
+      --yellow:#ffd600; --yellow-dark:#f9a825;
+      --blue:#2979ff; --blue-dark:#0d47a1;
+      --grid: 34px; /* cell size — tweak if you want */
+    }
+
+    /* Page */
+    body{ background:#f3f4f6; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+    .wrap{
+      max-width: 900px; margin: 22px auto; text-align: center;
+    }
+    h2{ margin: 0 0 8px; font-size: 2rem; }
+
+    /* Legend */
+    .legend{font-size:.95rem; color:#444; margin-bottom:12px}
+    .legend span{display:inline-flex; align-items:center; gap:8px; margin:0 10px}
+    .dot{ width:.8em; height:.8em; border-radius:50%; display:inline-block }
+    .dot.red{background:var(--red-dark)} .dot.green{background:var(--green-dark)}
+    .dot.blue{background:var(--blue-dark)} .dot.yellow{background:var(--yellow-dark)}
+
+    /* Centering shell (prevents the “extra right border” issue) */
+    .board-wrapper{ display:flex; justify-content:center; }
+    .board-shell{ width:max-content; }
+
+    /* Board grid */
+    .ludo-board{
+      display:grid;
+      grid-template-columns: repeat(15, var(--grid));
+      grid-template-rows: repeat(15, var(--grid));
+      border-radius: 12px;
+      background:#fff;
+      box-shadow:0 2px 18px rgba(0,0,0,.12);
+      border:1px solid #e5e7eb;
+      overflow:hidden;
+    }
+    .cell{
+      width:var(--grid); height:var(--grid);
+      border:1px solid #e6e6e6; box-sizing:border-box; position:relative;
+    }
+
+    /* Homes */
+    .home.red{ background:var(--red) }
+    .home.blue{ background:var(--blue) }
+    .home.green{ background:var(--green) }
+    .home.yellow{ background:var(--yellow) }
+
+    /* Outer track & colored lanes */
+    .track{ background:#f6f7fb }
+    .lane.red{ background:#ffdfe2 }
+    .lane.blue{ background:#dbe9ff }
+    .lane.green{ background:#dff3e3 }
+    .lane.yellow{ background:#fff3bf }
+
+    /* Safe squares (starts + 4 connectors) */
+    .safe{ background: #ffe783 !important; box-shadow: inset 0 0 0 2px rgba(0,0,0,.06) }
+
+    /* Center 3×3 star */
+    .center{ background:
+      conic-gradient(var(--red) 0 90deg, var(--green) 90deg 180deg,
+                     var(--blue) 180deg 270deg, var(--yellow) 270deg 360deg); }
+
+    /* Home “piece spots” (just for looks) */
+    .spot{
+      position:absolute; width:18px; height:18px; border-radius:50%;
+      border:2px solid #fff; opacity:.9; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+    }
+
+    /* Tokens */
+    .token{
+      width:20px; height:20px; border-radius:50%;
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      border:2px solid #fff; cursor:pointer; transition: transform .12s ease;
+    }
+    .token:hover{ transform:translate(-50%,-50%) scale(1.08); }
+    .token.red{ background:var(--red-dark) }
+    .token.blue{ background:var(--blue-dark) }
+    .token.green{ background:var(--green-dark) }
+    .token.yellow{ background:var(--yellow-dark) }
+    .disabled{ pointer-events:none; opacity:.55 }
+
+    /* Panel */
+    .panel{ margin:16px 0 0 }
+    .dice-btn{
+      padding:12px 26px; font-size:1.05rem; border:none; border-radius:12px;
+      background: linear-gradient(90deg, #2f7bf3, #5ec6ff); color:#fff; cursor:pointer;
+      box-shadow:0 6px 18px rgba(47,123,243,.25);
+    }
+    .dice-btn:disabled{ opacity:.6; cursor:not-allowed; }
+    .dice-face{ font-size:2rem; margin:12px 0 6px; min-height:2rem }
+    .turn{ font-weight:700 }
+    .hint{ font-size:.95rem; color:#555; margin-top:6px }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>🎲 Ludo</h2>
+
+    <div class="legend">
+      <span><i class="dot red"></i>Red</span>
+      <span><i class="dot green"></i>Green</span>
+      <span><i class="dot yellow"></i>Yellow</span>
+      <span><i class="dot blue"></i>Blue</span>
+    </div>
+
+    <div class="board-wrapper">
+      <div class="board-shell">
+        <div class="ludo-board" id="board"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <button class="dice-btn" id="rollBtn">Roll Dice</button>
+      <div class="dice-face" id="diceFace">🎲</div>
+      <div class="turn" id="turnLabel">Turn: 🔴 Red</div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </div>
+
+  <script>
+    // ========= Setup helpers
+    const diceFaces = ["⚀","⚁","⚂","⚃","⚄","⚅"];
+    const emojiFor = {red:"🔴",green:"🟢",yellow:"🟡",blue:"🔵"};
+    const colors = ["red","green","yellow","blue"]; // turn order
+
+    // Build 15×15 grid and save cell refs
+    const board = document.getElementById('board');
+    const grid = [...Array(15)].map(()=>Array(15).fill(null));
+
+    for(let r=0;r<15;r++){
+      for(let c=0;c<15;c++){
+        const el=document.createElement('div');
+        el.className='cell';
+        el.dataset.r=r; el.dataset.c=c;
+
+        // Homes (four 6×6 corners)
+        if(r<6 && c<6) el.classList.add('home','red');
+        if(r<6 && c>8) el.classList.add('home','blue');
+        if(r>8 && c<6) el.classList.add('home','green');
+        if(r>8 && c>8) el.classList.add('home','yellow');
+
+        // Outer track rails (rows 6 & 8, cols 6 & 8)
+        if(r===6 || r===8 || c===6 || c===8) el.classList.add('track');
+
+        // Home lanes (toward center)
+        if(r===7 && c>=1 && c<=6) el.classList.add('lane','red');
+        if(r===7 && c>=8 && c<=13) el.classList.add('lane','yellow');
+        if(c===7 && r>=1 && r<=6) el.classList.add('lane','blue');
+        if(c===7 && r>=8 && r<=13) el.classList.add('lane','green');
+
+        // Center 3×3 star
+        if(r>=6 && r<=8 && c>=6 && c<=8) el.classList.add('center');
+
+        board.appendChild(el);
+        grid[r][c]=el;
+      }
+    }
+
+    // Add decorative home spots (2×2 circles) for looks
+    const spots = {
+      red:    [[1,1],[1,3],[3,1],[3,3]],
+      blue:   [[1,11],[1,13],[3,11],[3,13]],
+      green:  [[11,1],[11,3],[13,1],[13,3]],
+      yellow: [[11,11],[11,13],[13,11],[13,13]],
+    };
+    Object.entries(spots).forEach(([clr,pts])=>{
+      pts.forEach(([r,c])=>{
+        const s=document.createElement('div');
+        s.className='spot';
+        grid[r][c].appendChild(s);
+      });
+    });
+
+    // ===== Safe squares: 4 starts + 4 connectors
+    const SAFE_COORDS = [
+      [6,0], [1,8], [8,14], [13,6], // starts (red, blue, yellow, green)
+      [0,7], [7,14], [14,7], [7,0]  // 4 connectors (top, right, bottom, left)
+    ];
+    const SAFE_SET = new Set();
+    SAFE_COORDS.forEach(([r,c])=>{
+      grid[r][c].classList.add('safe');
+      SAFE_SET.add(grid[r][c]);
+    });
+
+    // ===== Correct 52-step clockwise outer loop staying on rails (rows/cols 6 & 8)
+    // Start at (6,0); connectors at (0,7),(7,14),(14,7),(7,0)
+    const LOOP = [
+      // left band to top
+      ...Array.from({length:6},(_,i)=>[6,i]),                 // (6,0..5)
+      ...Array.from({length:6},(_,i)=>[5-i,6]),               // (5..0,6)
+      [0,7],
+      ...Array.from({length:5},(_,i)=>[i+1,8]),               // (1..5,8)
+      ...Array.from({length:7},(_,i)=>[6,8+i]),               // (6,8..14)
+      [7,14],
+      ...Array.from({length:6},(_,i)=>[8,14-i]),              // (8,14..9)
+      ...Array.from({length:6},(_,i)=>[9+i,8]),               // (9..14,8)
+      [14,7],
+      ...Array.from({length:5},(_,i)=>[13-i,6]),              // (13..9,6)
+      ...Array.from({length:7},(_,i)=>[8,6-i]),               // (8,6..0)
+      [7,0]
+    ]; // 52 cells
+
+    // Lanes (6 cells, last is goal)
+    const LANES = {
+      red:    [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+      yellow: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+      blue:   [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
+      green:  [[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]],
+    };
+
+    // Start indices along LOOP (every 13 cells)
+    // red (6,0)=0 | blue (1,8)=13 | yellow (8,14)=26 | green (13,6)=39
+    const START_IDX = { red:0, blue:13, yellow:26, green:39 };
+
+    const players = ["red","green","yellow","blue"].map(color => ({
+      color,
+      path: buildPath(color), // 52 + 6 = 58 cells
+      tokens: [],
+    }));
+
+    function buildPath(color){
+      const si = START_IDX[color];
+      const rotated = LOOP.slice(si).concat(LOOP.slice(0,si));
+      const withLane = rotated.concat(LANES[color]);
+      return withLane.map(([r,c])=>grid[r][c]);
+    }
+
+    // Create tokens, place in bases
+    const BASES = {
+      red:    [[1,1],[1,3],[3,1],[3,3]],
+      blue:   [[1,11],[1,13],[3,11],[3,13]],
+      green:  [[11,1],[11,3],[13,1],[13,3]],
+      yellow: [[11,11],[11,13],[13,11],[13,13]],
+    };
+
+    players.forEach(p=>{
+      for(let i=0;i<4;i++){
+        const el=document.createElement('div');
+        el.className=`token ${p.color}`;
+        const [br,bc]=BASES[p.color][i];
+        grid[br][bc].appendChild(el);
+
+        const tok = {
+          el,
+          color:p.color,
+          player:p,
+          pos:-1,                 // -1=in base; 0..57 on path; 57=goal
+          baseCell:grid[br][bc],
+        };
+        el.addEventListener('click',()=>onTokenClick(tok));
+        p.tokens.push(tok);
+      }
+    });
+
+    // ===== Game state + UI hooks
+    let current = 0;         // index into players array
+    let diceValue = 0;
+    let rolled = false;
+
+    const rollBtn = document.getElementById('rollBtn');
+    const faceEl = document.getElementById('diceFace');
+    const turnEl = document.getElementById('turnLabel');
+    const hintEl = document.getElementById('hint');
+
+    rollBtn.addEventListener('click', rollDice);
+    updateTurnLabel();
+    setClickableForCurrent(false);
+
+    function updateTurnLabel(){
+      const p = players[current];
+      turnEl.textContent = `Turn: ${emojiFor[p.color]} ${capitalize(p.color)}`;
+    }
+    function capitalize(s){ return s[0].toUpperCase()+s.slice(1); }
+
+    function rollDice(){
+      if(rolled) return;
+      diceValue = Math.floor(Math.random()*6)+1;
+      faceEl.textContent = diceFaces[diceValue-1];
+      rolled = true;
+
+      const p = players[current];
+      const can = listValidMoves(p, diceValue);
+      if(can.length===0){
+        // No moves → pass turn regardless of rolling 6
+        rolled = false;
+        nextPlayer();
+      }else{
+        hintEl.textContent = `Choose a ${p.color.toUpperCase()} token to move ${diceValue} step${diceValue>1?'s':''}.`;
+      }
+      setClickableForCurrent(true);
+    }
+
+    function listValidMoves(player, steps){
+      const res=[];
+      for(const t of player.tokens){
+        if(t.pos===-1){
+          if(steps===6) res.push({t, targetIdx:0, type:'release'});
+          continue;
+        }
+        const dest = t.pos + steps;
+        if(dest > player.path.length-1) continue; // must land exactly on goal
+        res.push({t, targetIdx:dest, type:'move'});
+      }
+      return res;
+    }
+
+    function onTokenClick(token){
+      const p = players[current];
+      if(token.player!==p || !rolled) return;
+      const options = listValidMoves(p, diceValue).filter(o=>o.t===token);
+      if(options.length===0) return;
+      applyMove(options[0]);
+    }
+
+    function applyMove({t,targetIdx,type}){
+      const p = t.player;
+
+      if(t.pos===-1 && type==='release'){
+        t.pos = 0;
+        p.path[0].appendChild(t.el);
+      }else{
+        t.pos = targetIdx;
+        const destCell = p.path[t.pos];
+        destCell.appendChild(t.el);
+
+        // Capture only on outer loop (0..51) and only if destination isn't safe
+        if(t.pos < 52 && !SAFE_SET.has(destCell)){
+          const victims = Array.from(destCell.querySelectorAll('.token'))
+            .map(el=>findTokenByEl(el))
+            .filter(v=>v && v.color!==t.color);
+          if(victims.length){
+            victims.forEach(v=>{
+              v.pos=-1;
+              v.baseCell.appendChild(v.el);
+            });
+          }
+        }
+      }
+
+      // Win check: all tokens at goal (index 57)
+      if(p.tokens.every(x=>x.pos===p.path.length-1)){
+        setClickableForCurrent(false);
+        faceEl.textContent='🏆';
+        hintEl.textContent = `${p.color.toUpperCase()} wins!`;
+        rollBtn.disabled = true;
+        return;
+      }
+
+      const keepTurn = (diceValue===6);
+      rolled = false;
+      setClickableForCurrent(false);
+      if(keepTurn){
+        hintEl.textContent = `${p.color.toUpperCase()} rolled a 6 – roll again.`;
+      }else{
+        hintEl.textContent = '';
+        nextPlayer();
+      }
+    }
+
+    function nextPlayer(){
+      current = (current+1)%players.length;
+      updateTurnLabel();
+    }
+
+    function setClickableForCurrent(enable){
+      players.forEach((pl,idx)=>{
+        pl.tokens.forEach(t=>{
+          if(idx!==current || !enable) t.el.classList.add('disabled');
+          else t.el.classList.remove('disabled');
+        });
+      });
+    }
+
+    function findTokenByEl(el){
+      for(const pl of players){ for(const t of pl.tokens){ if(t.el===el) return t; } }
+      return null;
+    }
+  </script>
+</body>
+</html>

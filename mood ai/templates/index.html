@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Mood Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>AI Mood Tracker</h1>
+    <input type="text" id="moodInput" placeholder="Enter your emotion..." />
+    <button class="glow-btn" onclick="submitMood()">Get Support</button>
+    <div id="responseBox"></div>
+  </div>
+  
+
+  <script>
+    async function submitMood() {
+      const mood = document.getElementById("moodInput").value;
+
+      const response = await fetch("/api/mood", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mood: mood })
+      });
+
+      let data;
+      const box = document.getElementById("responseBox");
+      try {
+        data = await response.json();
+      } catch (e) {
+        box.innerHTML = `<p class="error-msg">Server returned an invalid response.</p>`;
+        return;
+      }
+
+      if (response.ok && data.status === "success") {
+        let gameHtml = "";
+
+        if (data.game === "breathing") {  
+          gameHtml = `
+            <div class="breathing-game">
+              <div class="breath-circle" id="breathCircle"></div>
+              <div class="breath-instruction" id="breathInstruction">Ready? Click Start!</div>
+              <button class="glow-btn" id="startBreathing">Start Breathing Challenge</button>
+              <button class="glow-btn" id="stopBreathing" style="display:none;">Feeling Better</button>
+            </div>
+          `;
+        } 
+        else if (data.game === "ludo") {
+          gameHtml = `
+            <div class="ludo-embed">
+              <button class="glow-btn" onclick="openLudo()">Play Ludo</button>
+            </div>
+          `;
+        } 
+        else if (data.game === "mario") {
+          gameHtml = `
+            <div class="mario-embed">
+              <button class="glow-btn" onclick="openMario()">Play Game</button>
+            </div>
+          `;
+        } 
+        else if (data.game === "todo") {
+          gameHtml = `
+            <div class="todo-embed">
+              <button class="glow-btn" onclick="openTodo()">start</button>
+            </div>
+          `;
+        }
+        else if (data.game === "diary") {
+          gameHtml = `
+            <div class="diary-embed">
+              <button class="glow-btn" onclick="openDiary()">Open Diary</button>
+            </div>
+          `;
+        }
+
+
+        box.innerHTML = `
+          <div class="result-card">
+            <p><span class="label">Mood:</span> <span class="value">${data.emotion} (${data.intensity})</span></p>
+            <p><span class="label">Quote:</span> <span class="quote">“${data.quote}”</span></p>
+            <p><span class="label">Suggested Action:</span> <span class="action">${data.action}</span></p>
+            ${gameHtml}
+          </div>
+        `;
+
+        if (data.game === "breathing") {
+          setupBreathingGame();
+        }
+      } else {
+        // API may return helpful fields such as 'quote' or 'action' on error
+        const errText = (data && (data.quote || data.action || data.message)) || "Something went wrong. Please try again.";
+        box.innerHTML = `<p class="error-msg">${errText}</p>`;
+      }
+    }
+
+    // --- Breathing Game Logic ---
+    function setupBreathingGame() {
+      let breathingActive = false;
+      let breathingInterval;
+      let phase = 0;
+
+      const instruction = document.getElementById("breathInstruction");
+      const circle = document.getElementById("breathCircle");
+      const startBtn = document.getElementById("startBreathing");
+      const stopBtn = document.getElementById("stopBreathing");
+
+      const phases = [
+        { text: "Breathe In", scale: 1.5, duration: 4000 },
+        { text: "Hold", scale: 1.5, duration: 3000 },
+        { text: "Breathe Out", scale: 1, duration: 4000 },
+        { text: "Hold", scale: 1, duration: 3000 }
+      ];
+
+      function runPhase() {
+        if (!breathingActive) return;
+        const { text, scale, duration } = phases[phase];
+        instruction.textContent = text;
+        circle.style.transition = `transform ${duration / 1000}s ease-in-out`;
+        circle.style.transform = `scale(${scale})`;
+
+        phase = (phase + 1) % phases.length;
+        breathingInterval = setTimeout(runPhase, duration);
+      }
+
+      startBtn.onclick = () => {
+        if (breathingActive) return;
+        breathingActive = true;
+        startBtn.style.display = "none";
+        stopBtn.style.display = "inline-block";
+        runPhase();
+      };
+
+      stopBtn.onclick = () => {
+        breathingActive = false;
+        clearTimeout(breathingInterval);
+        instruction.textContent = "Take a deep breath 🌿";
+        circle.style.transition = "transform 1s ease-in-out";
+        circle.style.transform = "scale(1)";
+        startBtn.style.display = "inline-block";
+        stopBtn.style.display = "none";
+      };
+    }
+
+    // --- Open Games ---
+    function openLudo() {
+      const w = 800, h = 800;
+      const left = (screen.width / 2) - (w / 2);
+      const top = (screen.height / 2) - (h / 2);
+      try {
+        const win = window.open("/ludo", "LudoGame",
+          `width=${w},height=${h},top=${top},left=${left},resizable=yes,scrollbars=no`);
+        // Popup blocked? fallback to same-tab navigation
+        if (!win) window.location.href = "/ludo";
+      } catch (e) { window.location.href = "/ludo"; }
+    }
+
+    function openMario() {
+      const w = 900, h = 600;
+      const left = (screen.width / 2) - (w / 2);
+      const top = (screen.height / 2) - (h / 2);
+      try {
+        const win = window.open("/mario", "MarioGame",
+          `width=${w},height=${h},top=${top},left=${left},resizable=yes,scrollbars=no`);
+        if (!win) window.location.href = "/mario";
+      } catch (e) { window.location.href = "/mario"; }
+    }
+
+    function openTodo() {
+      const w = 600, h = 800;
+      const left = (screen.width / 2) - (w / 2);
+      const top = (screen.height / 2) - (h / 2);
+      try {
+        const win = window.open("/todo", "TodoApp",
+          `width=${w},height=${h},top=${top},left=${left},resizable=yes,scrollbars=no`);
+        if (!win) window.location.href = "/todo";
+      } catch (e) { window.location.href = "/todo"; }
+    }
+
+    function openDiary() {
+      const w = 600, h = 800;
+      const left = (screen.width / 2) - (w / 2);
+      const top = (screen.height / 2) - (h / 2);
+      try {
+        const win = window.open("/diary", "DiaryApp",
+          `width=${w},height=${h},top=${top},left=${left},resizable=yes,scrollbars=no`);
+        if (!win) window.location.href = "/diary";
+      } catch (e) { window.location.href = "/diary"; }
+    }
+  </script>
+</body>
+</html>

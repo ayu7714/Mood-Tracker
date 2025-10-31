@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Diary</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #f9f9fb;
+      margin: 0;
+      padding: 0;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    header {
+      background: #3f51b5;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    #searchBar {
+      width: 250px;
+      padding: 8px 12px;
+      border-radius: 20px;
+      border: none;
+      outline: none;
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    #entries {
+      margin-top: 20px;
+      list-style: none;
+      padding: 0;
+    }
+
+    #entries li {
+      background: #fff;
+      margin-bottom: 10px;
+      padding: 12px 15px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      transition: 0.2s;
+    }
+
+    #entries li:hover {
+      background: #f1f3ff;
+    }
+
+    .entry-text {
+      flex: 1;
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #e53935;
+      font-size: 18px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+
+    #editor {
+      display: none;
+      margin-top: 20px;
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+
+    #editor textarea {
+      width: 100%;
+      height: 200px;
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid #ccc;
+      resize: none;
+      font-size: 14px;
+    }
+
+    .btn {
+      margin-top: 10px;
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-save {
+      background: #4caf50;
+      color: white;
+    }
+
+    .btn-pdf {
+      background: #ff5722;
+      color: white;
+      margin-left: 10px;
+    }
+
+    .btn-rename {
+      background: #2196f3;
+      color: white;
+      margin-left: 10px;
+    }
+
+    /* Floating plus button */
+    #addEntry {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #3f51b5;
+      color: white;
+      border: none;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      font-size: 28px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    /* Dark mode */
+    body.dark {
+      background: #121212;
+      color: #e0e0e0;
+    }
+
+    body.dark header {
+      background: #1f1f1f;
+    }
+
+    body.dark #entries li {
+      background: #1e1e1e;
+      color: #e0e0e0;
+    }
+
+    body.dark #entries li:hover {
+      background: #333;
+    }
+
+    body.dark #editor {
+      background: #1e1e1e;
+      color: #e0e0e0;
+    }
+
+    body.dark textarea {
+      background: #2b2b2b;
+      color: #f1f1f1;
+      border: 1px solid #555;
+    }
+
+    #darkModeToggle {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      margin-left: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>📔 My Diary</h1>
+    <div>
+      <input type="text" id="searchBar" placeholder="Search entries...">
+      <button id="darkModeToggle">🌙</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <ul id="entries">
+      <li style="text-align:center; color:gray;" id="emptyMsg">Empty</li>
+    </ul>
+
+    <div id="editor">
+      <input type="text" id="fileName" placeholder="Untitled Entry" style="width:100%; padding:8px; margin-bottom:10px; font-size:14px; border-radius:6px; border:1px solid #ccc;">
+      <textarea id="diaryText" placeholder="Write your thoughts..."></textarea>
+      <br>
+      <button class="btn btn-save" onclick="saveEntry()">💾 Save</button>
+      <button class="btn btn-pdf" onclick="exportPDF()">📄 Export as PDF</button>
+      <button class="btn btn-rename" onclick="renameEntry()">✏️ Rename</button>
+    </div>
+  </div>
+
+  <button id="addEntry" onclick="newEntry()">+</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    let currentEntry = null;
+
+    function loadEntries() {
+      const entriesList = document.getElementById("entries");
+      entriesList.innerHTML = "";
+      const keys = Object.keys(localStorage).filter(k => k !== "darkMode");
+
+      if (keys.length === 0) {
+        entriesList.innerHTML = "<li style='text-align:center; color:gray;' id='emptyMsg'>Empty</li>";
+        return;
+      }
+
+      keys.forEach(key => {
+        const li = document.createElement("li");
+
+        const span = document.createElement("span");
+        span.className = "entry-text";
+        span.textContent = key;
+        span.onclick = () => openEntry(key);
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "delete-btn";
+        delBtn.innerHTML = "🗑️";
+        delBtn.onclick = (e) => {
+          e.stopPropagation(); 
+          deleteEntry(key);
+        };
+
+        li.appendChild(span);
+        li.appendChild(delBtn);
+        entriesList.appendChild(li);
+      });
+    }
+
+    function newEntry() {
+      document.getElementById("editor").style.display = "block";
+      document.getElementById("fileName").value = "";
+      document.getElementById("diaryText").value = "";
+      currentEntry = null;
+    }
+
+    function saveEntry() {
+      const name = document.getElementById("fileName").value.trim() || "Untitled Entry";
+      const text = document.getElementById("diaryText").value;
+
+      if (localStorage.getItem(name) && name !== currentEntry) {
+        const confirmOverwrite = confirm(`An entry named "${name}" already exists. Do you want to overwrite it?`);
+        if (!confirmOverwrite) return;
+      }
+
+      localStorage.setItem(name, text);
+      currentEntry = name;
+      loadEntries();
+    }
+
+    function openEntry(name) {
+      document.getElementById("editor").style.display = "block";
+      document.getElementById("fileName").value = name;
+      document.getElementById("diaryText").value = localStorage.getItem(name);
+      currentEntry = name;
+    }
+
+    function deleteEntry(name) {
+      if (confirm(`Delete entry "${name}"?`)) {
+        localStorage.removeItem(name);
+        if (name === currentEntry) {
+          document.getElementById("editor").style.display = "none";
+        }
+        loadEntries();
+      }
+    }
+
+    function renameEntry() {
+      if (!currentEntry) {
+        alert("No entry opened to rename!");
+        return;
+      }
+      const newName = prompt("Enter new name:", currentEntry);
+      if (!newName) return;
+
+      if (localStorage.getItem(newName) && newName !== currentEntry) {
+        alert("An entry with this name already exists!");
+        return;
+      }
+
+      const content = localStorage.getItem(currentEntry);
+      localStorage.removeItem(currentEntry);
+      localStorage.setItem(newName, content);
+
+      currentEntry = newName;
+      document.getElementById("fileName").value = newName;
+      loadEntries();
+    }
+
+    async function exportPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const name = document.getElementById("fileName").value || "Diary Entry";
+      const text = document.getElementById("diaryText").value;
+
+      doc.text(text, 10, 10);
+      doc.save(name + ".pdf");
+    }
+
+    document.getElementById("searchBar").addEventListener("input", function () {
+      const query = this.value.toLowerCase();
+      const items = document.querySelectorAll("#entries li");
+      items.forEach(li => {
+        if (!li.textContent.toLowerCase().includes(query) && li.id !== "emptyMsg") {
+          li.style.display = "none";
+        } else {
+          li.style.display = "flex";
+        }
+      });
+    });
+
+    // Auto-save as user types
+    document.getElementById("diaryText").addEventListener("input", function () {
+      const name = document.getElementById("fileName").value.trim() || "Untitled Entry";
+      const text = this.value;
+      if (name) {
+        localStorage.setItem(name, text);
+        currentEntry = name;
+        loadEntries();
+      }
+    });
+
+    // Dark mode toggle
+    const darkToggle = document.getElementById("darkModeToggle");
+    function applyDarkMode(enabled) {
+      if (enabled) {
+        document.body.classList.add("dark");
+        darkToggle.textContent = "☀️";
+        localStorage.setItem("darkMode", "true");
+      } else {
+        document.body.classList.remove("dark");
+        darkToggle.textContent = "🌙";
+        localStorage.setItem("darkMode", "false");
+      }
+    }
+    darkToggle.addEventListener("click", () => {
+      applyDarkMode(!document.body.classList.contains("dark"));
+    });
+
+    // Load user preference
+    window.onload = function() {
+      if (localStorage.getItem("darkMode") === "true") {
+        applyDarkMode(true);
+      }
+      loadEntries();
+    };
+  </script>
+</body>
+</html>
