@@ -1,0 +1,26 @@
+<header class="app-header">
+  <div class="brand"><a href="{{ url_for('index') }}">MoodAI</a></div>
+  <div class="header-actions">
+    {% if user %}
+      <span class="user-chip">{{ user['username'] }}</span>
+      <form method="post" action="{{ url_for('logout') }}" style="display:inline;margin:0;padding:0">
+        <button class="btn-ghost" type="submit">Logout</button>
+      </form>
+    {% else %}
+      <a class="btn-ghost" href="{{ url_for('login') }}">Login</a>
+      <a class="btn-ghost" href="{{ url_for('register') }}">Register</a>
+    {% endif %}
+  </div>
+</header>
+<script>
+  (function(){
+    try{
+      const isDark = localStorage.getItem('darkMode') === 'true';
+      if (isDark) document.body.classList.add('dark-mode');
+      const toggle = document.getElementById('darkModeToggle');
+      if (toggle) toggle.checked = isDark;
+      const status = document.getElementById('darkModeStatus');
+      if (status) status.textContent = isDark ? 'On' : 'Off';
+    }catch(e){}
+  })();
+</script>

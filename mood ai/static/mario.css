@@ -1,0 +1,85 @@
+/* Layout & HUD */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: #87CEEB;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  overflow: hidden;
+  
+}
+
+#hud {
+  position: fixed;
+  top: 10px; left: 12px;
+  z-index: 50;
+  display: flex; gap: 16px; align-items: center;
+  background: rgba(255,255,255,.85);
+  padding: 8px 14px;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255,255,255,.65);
+
+}
+#hud .hint {
+  font-weight: 500;
+  opacity: .7;
+  text-shadow: 0 1px 0 rgba(255,255,255,.65);
+}
+
+
+
+/* Game viewport */
+#game {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  border-bottom: 4px solid #333;
+}
+
+/* World (infinite scrolling ground) */
+#world {
+  position: absolute;
+  left: 0; top: 0;
+  width: 20000px;   /* very wide so we can scroll endlessly */
+  height: 100%;
+  will-change: transform;
+  background: url("https://i.ibb.co/2gVjqVx/ground.png") repeat-5;
+  background-size: contain;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Parallax skies */
+.parallax { 
+  position: absolute; 
+  left:0; 
+  top:0; 
+  width:20000px;   /* match world width for endless scroll illusion */
+  height:100%; 
+  pointer-events:none; 
+  background-repeat: repeat-5;
+  background-position: bottom;
+  will-change: background-position;
+}
+
+#finish {
+  background: url("https://i.ibb.co/0Jm8Kqk/finish-flag.png") no-repeat center/cover;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto;
+  z-index: 10;
+  pointer-events: all;
+  cursor: pointer;
+  transform: translateY(-12px);
+
+}
+
+
+.layer-back  { background-image: url('../static/sky-back.png');  background-size: cover; z-index: 1; }
+.layer-mid   { background-image: url('../static/sky-mid.png');   background-size: cover; z-index: 2; }
+.layer-front { background-image: url('../static/sky-front.png'); background-size: cover; z-index: 3; }
+.layer-front { animation: float 6s ease-in-out infinite; }
+
