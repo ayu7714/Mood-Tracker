@@ -1,0 +1,72 @@
+/* ludo.css — centered board + visible tokens */
+
+/* Basic layout */
+* { box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #f7f9fc;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+}
+
+/* Optional outer wrapper if you use it */
+.board-wrapper { display: flex; justify-content: center; width: 100%; }
+
+/* The 15x15 grid board */
+.ludo-board {
+  --cell-size: clamp(28px, 3.2vw, 40px);   /* adjust size here */
+  display: grid;
+  grid-template-columns: repeat(15, var(--cell-size));
+  grid-template-rows: repeat(15, var(--cell-size));
+  margin: 16px auto;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e6e6e6;
+  box-shadow: 0 6px 20px rgba(0,0,0,.06);
+}
+
+/* Individual squares */
+.cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border: 1px solid #ddd;
+  position: relative;                /* ✅ tokens position against the cell */
+}
+
+/* ===== Tokens (THIS brings them back) ===== */
+.token {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--cell-size) * 0.56);
+  height: calc(var(--cell-size) * 0.56);
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.15);
+  z-index: 2;
+  cursor: pointer;
+}
+.token.red    { background: #b71c1c; }
+.token.green  { background: #1b5e20; }
+.token.yellow { background: #f9a825; }
+.token.blue   { background: #0d47a1; }
+.token.disabled { opacity: .6; pointer-events: none; }
+
+/* Buttons / status (optional, keep if you use them) */
+button {
+  padding: 10px 20px;
+  background: linear-gradient(90deg, #007BFF, #00c6ff);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,123,255,.25); }
+
+.status { margin-top: 10px; font-weight: 600; text-align: center; }

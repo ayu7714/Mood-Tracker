@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Your Mood History</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include 'header.html' %}
+  <div class="container card">
+    <div class="history-header">
+      <a href="{{ url_for('index') }}" class="back-btn">← Back</a>
+      <h2>Your Mood History</h2>
+      
+    </div>
+
+    {% if moods and moods|length > 0 %}
+      <div class="history-grid">
+        {% for m in moods %}
+          <article class="history-card" data-game="{{ m['game'] or '' }}" data-created="{{ m['created_at'] }}">
+            <div class="card-row">
+              <div class="mood-badge {{ m['emotion']|lower }}">{{ m['emotion'] or 'unknown' }}</div>
+              <div class="time-meta" title="{{ m['created_at'] }}">{{ m['created_at'][:19].replace('T',' ') }}</div>
+            </div>
+            <div class="card-body">
+              <div class="mood-intensity">{{ m['intensity'] }}</div>
+              <blockquote class="quote">“{{ m['quote'] }}”</blockquote>
+              <div class="suggest">{{ m['action'] }}</div>
+            </div>
+            <div class="card-actions">
+              {% if m['game'] == 'ludo' %}
+                <button class="action-btn" data-action="ludo">Play Ludo</button>
+              {% elif m['game'] == 'mario' %}
+                <button class="action-btn" data-action="mario">Play Game</button>
+              {% elif m['game'] == 'breathing' %}
+                <button class="action-btn" data-action="breathing">Start Breathing</button>
+              {% elif m['game'] == 'todo' %}
+                <button class="action-btn" data-action="todo">Open Todo</button>
+              {% elif m['game'] == 'diary' %}
+                <button class="action-btn" data-action="diary">Open Diary</button>
+              {% else %}
+                <button class="action-btn" data-action="none">View</button>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+      <div class="pagination">
+        {% set start = (page - 1) * page_size + 1 %}
+        {% set end = start + (moods|length) - 1 %}
+        <div class="page-info">Showing {{ start }}–{{ end }} of {{ total }} entries</div>
+        <div class="page-controls">
+          {% if page > 1 %}
+            <a class="page-link" href="?page={{ page-1 }}&page_size={{ page_size }}">← Prev</a>
+          {% else %}
+            <span class="page-link disabled">← Prev</span>
+          {% endif %}
+          <span class="current-page">Page {{ page }} / {{ total_pages }}</span>
+          {% if page < total_pages %}
+            <a class="page-link" href="?page={{ page+1 }}&page_size={{ page_size }}">Next →</a>
+          {% else %}
+            <span class="page-link disabled">Next →</span>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No history yet. Try submitting how you're feeling on the <a href="{{ url_for('index') }}">main page</a>.</p>
+      </div>
+    {% endif %}
+
+    <script>
+      // convert ISO datetime to relative time
+      function relativeTimeISO(iso) {
+        try {
+          const d = new Date(iso);
+          const now = new Date();
+          const diff = Math.floor((now - d) / 1000);
+          if (diff < 5) return 'just now';
+          if (diff < 60) return `${diff}s`;
+          const minutes = Math.floor(diff/60);
+          if (minutes < 60) return `${minutes}m`;
+          const hours = Math.floor(minutes/60);
+          if (hours < 24) return `${hours}h`;
+          const days = Math.floor(hours/24);
+          if (days < 7) return `${days}d`;
+          return d.toLocaleString();
+        } catch (e) { return iso; }
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.history-card').forEach(card => {
+          const iso = card.dataset.created;
+          const timeEl = card.querySelector('.time-meta');
+          if (timeEl && iso) timeEl.textContent = relativeTimeISO(iso);
+
+          // click behavior: open associated page/tool
+          card.querySelector('.card-actions').addEventListener('click', function(e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            if (action === 'ludo') { window.location.href = '/ludo'; }
+            else if (action === 'mario') { window.location.href = '/mario'; }
+            else if (action === 'breathing') { window.location.href = '/'; /* breathing available on chat */ }
+            else if (action === 'todo') { window.location.href = '/todo'; }
+            else if (action === 'diary') { window.location.href = '/diary'; }
+            else { /* default: nothing */ }
+          });
+        });
+      });
+    </script>
+  </div>
+</body>
+</html>
